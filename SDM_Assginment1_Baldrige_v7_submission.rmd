@@ -1,0 +1,685 @@
+---
+title: "SDM_Assignment1_BaldrigeData"
+author: "Srikrishna Krishnarao Srinivasan"
+date: "January 16, 2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This assignment uses part of data from the Baldrige scoring process collected by the National Institute of Standards and Technology (NIST) for years 1990 to 2006. The Malcolm Baldrige National Quality Award (MBNQA) is considered as one of the most powerful catalysts of quality and organizational performance excellence in the United States, and it has had significant influence throughout the world. This data consists of performance evaluation scores of organizations from different sectors (variable "sector") like (1) manufacturing, (2) services, (3) small business, (4) education, (5) healthcare, and (6) nonprofit from 1990 to 2006. The dataset has scores on 7 categories that include (1) leadership; (2) strategic planning; (3) customer focus; (4) measurement, information and analysis; (5) workforce focus; (6) process management; and (7) results. In turn, these categories may have subcategories and the Criteria has sometimes added, discontinued or modified subcategories over time. 
+
+## Import Libraries, Set working directory
+
+```{r, echo=FALSE}
+setwd("B:/Travel/US/USF_Course/SDM")
+rm(list=ls())
+library(openxlsx)
+library(stargazer)
+library(knitr) #to use kable formatting
+library(ggplot2)
+library(reshape2)
+library(lattice)
+
+
+```
+
+## Import the file
+
+
+```{r, echo=FALSE}
+d=read.xlsx('baldridge2011.xlsx')
+num_of_obs = nrow(d)
+#print(colnames(d))
+print("File baldridge2011.xlsx imported")
+
+```
+
+## Observe how the data looks like
+
+
+```{r, echo=FALSE}
+plot(d$iirtotal)
+d_sum_na_iirtotal=sum(is.na(d$iirtotal))
+print(paste0("Number of NAs in the column: ", d_sum_na_iirtotal))
+plot(d$ccrtotal)
+d_sum_na_ccrtotal=sum(is.na(d$ccrtotal))
+print(paste0("Number of NAs in the column: ", d_sum_na_ccrtotal))
+
+
+```
+
+## 1a.Number of observations, mean, median, standard deviation, min, max and mode 
+
+```{r, echo=FALSE}
+find_mode=function(x,y, npar=TRUE)
+{
+  x_sorted=sort(x)
+  #x_num=length(x) + sum(is.na(x))
+  x_num=y
+  #print(paste0("Num for even odd check is: ", x_num))
+  middle=x_num/2
+  middle_1=middle+1
+  if (x_num%%2==0){
+    #Even
+    #print(paste0("Middle elements if even are: ",x_sorted[549], x_sorted[550]))
+    return((x_sorted[middle]+x_sorted[middle_1])/2)
+  } else {
+    #Odd
+    #print(paste0("Middle element if odd is: ",x_sorted[550]))
+    return(x_sorted[middle_1])
+  }
+    
+}
+
+```
+
+```{r, echo=FALSE}
+
+column_name='irrtotal'
+num_of_obs_irrtotal = nrow(d)
+mean_of_irrtotal=format(mean(d$iirtotal, na.rm=TRUE), digits=5)
+median_of_irrtotal=median(d$iirtotal, na.rm = TRUE)
+mode_of_irrtotal=find_mode(d$iirtotal, num_of_obs)
+
+print("Mean, Median, Mode for iirtotal:")
+print(paste0("Number of observations are: ", num_of_obs_irrtotal))
+print(paste0("Mean of observations is: ", mean_of_irrtotal))
+print(paste0("Median of observations is: ", median_of_irrtotal))
+print(paste0("Mode of observations is: ", mode_of_irrtotal))
+
+
+df_irrtotal=data.frame(column_name, num_of_obs_irrtotal, mean_of_irrtotal, median_of_irrtotal, mode_of_irrtotal)
+#print(df_irrtotal)
+
+#print(kable(df_irrtotal, caption='irrtotal stat'))
+
+column_name='ccrtotal'
+#d$ccrtotal[d$ccrtotal=='*']=0
+#print(d$ccrtotal[d$ccrtotal=='*'])
+df_nostar=d[which(d$ccrtotal!='*'),]
+df_nostar=d[which(d$ccrtotal!='NA'),]
+#replace.value(d, d$ccrtotal, from="*", to=as.integer(0), verbose=FALSE)
+#print(nrow(df_nostar))
+df_nostar$ccrtotal=as.integer(df_nostar$ccrtotal)
+df_nostar=df_nostar[with(df_nostar,{!is.na(df_nostar$ccrtotal)}),]
+#print(df_nostar$ccrtotal)
+num_of_obs_ccrtotal = nrow(d)
+mean_of_ccrtotal=format(mean(df_nostar$ccrtotal, na.rm=TRUE), digits=5)
+median_of_ccrtotal=median(df_nostar$ccrtotal, na.rm = TRUE)
+mode_of_ccrtotal=find_mode(df_nostar$ccrtotal, num_of_obs)
+
+print("---------------------------")
+print("Mean, Median, Mode for ccrtotal:")
+print(paste0("Number of observations are: ", num_of_obs_ccrtotal))
+print(paste0("Mean of observations is: ", mean_of_ccrtotal))
+print(paste0("Median of observations is: ", median_of_ccrtotal))
+print(paste0("Mode of observations is: ", mode_of_ccrtotal))
+
+df_ccrtotal=data.frame(column_name, num_of_obs_ccrtotal, mean_of_ccrtotal, median_of_ccrtotal, mode_of_ccrtotal)
+#print(df_irrtotal)
+#print(kable(df_ccrtotal, caption='ccrtotal stat'))
+
+print("Mean can be used for irrtotal to measure central tendency")
+print("Median can be used for ccrtotal to measure central tendency")
+
+```
+
+## 1b.Number of observations, mean, median, standard deviation, min and max of iirtotal, ccrtotal by Sector 
+
+```{r, echo=FALSE}
+
+calculate_sectorwise=function(x, npar=TRUE)
+{
+  max_var_sector_g_ccrtotal=0
+  max_sector_name_var=" "
+  for (i in 1:6){
+    if (i==1){
+      sector_name_var="Mfg"
+      
+    } else if (i==2) {
+      sector_name_var="Service"
+      
+    } else if (i==3) {
+      sector_name_var="Small"
+      
+    } else if (i==4) {
+      sector_name_var="Education"
+      
+    } else if (i==5) {
+      sector_name_var="Health"
+      
+    } else if (i==6) {
+      sector_name_var="Non-profit"
+      
+    }
+    
+    d$sector_name[d$sector==i]=sector_name_var
+    df_sector_g=d[which(d$sector_name==sector_name_var),]
+    df_sector_g$ccrtotal=as.integer(df_sector_g$ccrtotal)
+    #print(nrow(df_sector_1))
+    
+    #print("Calculate values for iirtotal")
+    num_of_obs_sector_g=nrow(df_sector_g)
+    mean_sector_g_iirtotal=format(mean(df_sector_g$iirtotal, na.rm = TRUE), digits=5)
+    median_sector_g_iirtotal=format(median(df_sector_g$iirtotal, na.rm = TRUE), digits=5)
+    stddev_sector_g_iirtotal=format(sd(df_sector_g$iirtotal, na.rm = TRUE), digits=5)
+    min_sector_g_iirtotal=format(min(df_sector_g$iirtotal, na.rm = TRUE), digits=5)
+    max_sector_g_iirtotal=format(max(df_sector_g$iirtotal, na.rm = TRUE), digits=5)
+    var_sector_g_iirtotal=format(var(df_sector_g$iirtotal), digits = 5)
+    
+    # print(paste0("Print Values for iirtotal for sector ", sector_name_var))
+    # print(paste0("Mean is: ", mean_sector_g_iirtotal))
+    # print(paste0("Medan is: ", median_sector_g_iirtotal))
+    # print(paste0("Standard Deviation is: ", stddev_sector_g_iirtotal))
+    # print(paste0("Max is: ", max_sector_g_iirtotal))
+    # print(paste0("Min is: ", min_sector_g_iirtotal))
+    
+    #print("Update data frame with iirtotal values")
+    df_sector_g1[nrow(df_sector_g1)+1,] = c(sector_name_var, 'iirtotal', num_of_obs_sector_g, mean_sector_g_iirtotal, median_sector_g_iirtotal, stddev_sector_g_iirtotal, max_sector_g_iirtotal, min_sector_g_iirtotal, var_sector_g_iirtotal )
+    
+    #print("Calculate values for ccrtotal")
+    mean_sector_g_ccrtotal=format(mean(df_sector_g$ccrtotal, na.rm = TRUE), digits=5)
+    median_sector_g_ccrtotal=format(median(df_sector_g$ccrtotal, na.rm = TRUE), digits=5)
+    stddev_sector_g_ccrtotal=format(sd(df_sector_g$ccrtotal, na.rm = TRUE), digits=5)
+    min_sector_g_ccrtotal=format(min(df_sector_g$ccrtotal, na.rm = TRUE), digits=5)
+    max_sector_g_ccrtotal=format(max(df_sector_g$ccrtotal, na.rm = TRUE), digits=5)
+    var_sector_g_ccrtotal=format(var(df_sector_g$ccrtotal),5)
+    
+    if (i == 1) {
+      max_var_sector_g_ccrtotal = var_sector_g_ccrtotal
+      max_sector_name_var=sector_name_var
+      
+    }
+    
+    
+    
+
+    # print(paste0("Print Values for ccrtotal for sector ", sector_name_var))
+    # print(paste0("Mean is: ", mean_sector_g_ccrtotal))
+    # print(paste0("Medan is: ", median_sector_g_ccrtotal))
+    # print(paste0("Standard Deviation is: ", stddev_sector_g_ccrtotal))
+    # print(paste0("Max is: ", max_sector_g_ccrtotal))
+    # print(paste0("Min is: ", min_sector_g_ccrtotal))
+    # print(paste0("Variance is: ", var_sector_g_ccrtotal))
+    # print(paste0("Max Variance is: ", max_var_sector_g_ccrtotal))
+    # print(paste0("The sector that has max variance is ", max_sector_name_var))
+    # 
+    # print("Check if this works 2")
+    #print("Update data frame with ccrtotal values") 
+    
+    df_sector_g1[nrow(df_sector_g1)+1,] = c(sector_name_var, 'ccrtotal', num_of_obs_sector_g, mean_sector_g_ccrtotal, median_sector_g_ccrtotal, stddev_sector_g_ccrtotal, max_sector_g_ccrtotal, min_sector_g_ccrtotal, var_sector_g_ccrtotal)
+    
+    
+
+  }
+  
+  return(df_sector_g1)
+    
+     
+
+}
+
+```
+
+
+
+
+
+```{r, echo=FALSE}
+
+d$sector_name[d$sector==1]="Manufacturing"
+
+df_sector_1=d[which(d$sector_name=='Manufacturing'),]
+#print(nrow(df_sector_1))
+
+#print("Calculate vaues for iirtotal")
+# mean_sector_1_iirtotal=format(mean(df_sector_1$iirtotal, na.rm = TRUE), digits=5)
+# median_sector_1_iirtotal=format(median(df_sector_1$iirtotal, na.rm = TRUE), digits=5)
+# stddev_sector_1_iirtotal=format(sd(df_sector_1$iirtotal, na.rm = TRUE), digits=5)
+# min_sector_1_iirtotal=format(min(df_sector_1$iirtotal, na.rm = TRUE), digits=5)
+# max_sector_1_iirtotal=format(max(df_sector_1$iirtotal, na.rm = TRUE), digits=5)
+
+
+# print("Print Values for iirtotal")
+# print(paste0("Mean of Sector 1 Manufacturing is: ", mean_sector_1_iirtotal))
+# print(paste0("Medan of Sector 1 Manufacturing is: ", median_sector_1_iirtotal))
+# print(paste0("Standard Deviation of Sector 1 Manufacturing is: ", stddev_sector_1_iirtotal))
+# print(paste0("Max of Sector 1 Manufacturing is: ", max_sector_1_iirtotal))
+# print(paste0("Min of Sector 1 Manufacturing is: ", min_sector_1_iirtotal))
+
+
+#print("Calculate values for ccrtotal")
+# mean_sector_1_ccrtotal=format(mean(df_sector_1$ccrtotal, na.rm = TRUE), digits=5)
+# median_sector_1_ccrtotal=format(median(df_sector_1$ccrtotal, na.rm = TRUE), digits=5)
+# stddev_sector_1_ccrtotal=format(sd(df_sector_1$ccrtotal, na.rm = TRUE), digits=5)
+# min_sector_1_ccrtotal=format(min(df_sector_1$ccrtotal, na.rm = TRUE), digits=5)
+# max_sector_1_ccrtotal=format(max(df_sector_1$ccrtotal, na.rm = TRUE), digits=5)
+
+
+# print("Print Values for ccrtotal")
+# print(paste0("Mean of Sector 1 Manufacturing is: ", mean_sector_1_ccrtotal))
+# print(paste0("Medan of Sector 1 Manufacturing is: ", median_sector_1_ccrtotal))
+# print(paste0("Standard Deviation of Sector 1 Manufacturing is: ", stddev_sector_1_ccrtotal))
+# print(paste0("Max of Sector 1 Manufacturing is: ", max_sector_1_ccrtotal))
+# print(paste0("Min of Sector 1 Manufacturing is: ", min_sector_1_ccrtotal))
+
+colClasses=c('character', 'character','integer', 'double', 'double', 'double', 'double', 'double', 'double')
+col.names=c('secname', 'variable','num_of_obs', 'mean', 'median', 'std.dev', 'max', 'min', 'ccrt_var')
+df_sector_g1 = read.table(text="", colClasses = colClasses, col.names = col.names)
+#df_sector_g1[nrow(df_sector_g1)+1,] = c('Manufacturing', 'iirtotal', mean_sector_1_iirtotal, median_sector_1_iirtotal, stddev_sector_1_iirtotal, max_sector_1_iirtotal, min_sector_1_iirtotal)
+
+#print("Check if this works")
+#print(df_sector_g1)
+
+df_sector_g1=calculate_sectorwise(d)
+print(df_sector_g1)
+
+```
+
+
+## 1c. Identify outliers in ccrtotal using boxplot. Compare Mean, Standard deviation of ccrtotal with and without outliers
+
+```{r, echo=FALSE}
+boxplot(df_nostar$ccrtotal, main="Box plot of ccrtotal")
+ccrtotal_outliers=boxplot.stats(df_nostar$ccrtotal)$out
+print(ccrtotal_outliers)
+df_nostar_no_outliers=df_nostar[which(df_nostar$ccrtotal!=c(ccrtotal_outliers)),]
+boxplot(df_nostar_no_outliers$ccrtotal, main="Box plot of ccrtotal without outliers")
+
+mean_of_ccrtotal_no_outliers=format(mean(df_nostar_no_outliers$ccrtotal, na.rm=TRUE), digits=5)
+sd_of_ccrtotal_no_outliers=format(sd(df_nostar_no_outliers$ccrtotal, na.rm=TRUE), digits=5)
+
+print(paste0("Mean of ccrtotal without outliers is: ", mean_of_ccrtotal_no_outliers))
+print(paste0("Std dev of ccrtotal without outliers is: ", sd_of_ccrtotal_no_outliers))
+print("----------------------")
+print(paste0("Mean of ccrtotal observations with outliers is: ", mean_of_ccrtotal))
+print(paste0("sd of ccrtotal observations with outliers is: ", format(sd(df_nostar$ccrtotal, na.rm = TRUE), digits = 5)))
+
+```
+
+
+
+## 1d. Draw a graph between icat4total, ccat7total. Give interpretation of the graph. Calculate correlation between them. Interpret correlation coefficient. Handle unequal number of observations.
+
+```{r, echo=FALSE}
+#Check and observe data
+print(paste0("Type of icat4total is: ", typeof(d$icat4total)))
+print(paste0("Type of ccat7total is: ", typeof(d$ccat7total)))
+
+df_icat4_ccat7 = d[c('icat4total', 'ccat7total')]
+print(summary(df_icat4_ccat7))
+
+for (i in 1:5) {
+  print(df_icat4_ccat7[i,])
+}
+
+df_icat4_ccat7_trimmed= df_icat4_ccat7[with(df_icat4_ccat7, {!(is.na(ccat7total))}),]
+df_icat4_ccat7_trimmed$ccat7total = as.numeric(df_icat4_ccat7_trimmed$ccat7total)
+print(summary(df_icat4_ccat7_trimmed))
+
+df_icat4_ccat7_trimmed= df_icat4_ccat7_trimmed[with(df_icat4_ccat7_trimmed, {!(is.na(ccat7total))}),]
+print(summary(df_icat4_ccat7_trimmed))
+
+with(df_icat4_ccat7_trimmed, plot(icat4total, ccat7total))
+
+boxplot(df_icat4_ccat7_trimmed)
+
+print("Interpretation: The datapoints of icat4total are densely packed between 50 and 60, whereas for ccat7total are densely packed between 150 and 220")
+
+cor_icat4total_ccat7total = round( cor(df_icat4_ccat7_trimmed$icat4total, df_icat4_ccat7_trimmed$ccat7total), 5)
+print(paste0("The correlation between icat4total and ccat7total is: ",cor_icat4total_ccat7total ))
+
+print("The variables icat4total and ccat7total are negatively correlated and have very low correlation coefficient")
+
+```
+
+## 1e. Count of organizations (using permanentid) along with their count, exclude ones
+
+```{r, echo=FALSE}
+print_orgs=function(){
+  
+  for (m in 2:9) {
+    
+    count_var = paste("Count_Orgs_", m)
+    
+    #count_2="Count_2_Orgs:"
+    for (i in 1:nrow(df_count_orgs_filtered)) {
+      if (df_count_orgs_filtered[i,'Freq'] == m) {
+        count_var = paste(count_var, df_count_orgs_filtered[i,'count_orgs'])
+      }
+    }
+  
+  print(count_var)
+  print("-----------------")
+    
+  }
+  
+}
+
+```
+
+
+```{r, echo=FALSE}
+print(summary(d$permanentid))
+for (i in 1:5) {
+  print(d$permanentid[i])
+}
+
+head(d, n=1)
+
+count_orgs = factor(d$permanentid)
+df_count_orgs=as.data.frame(table(count_orgs))
+head(df_count_orgs, 5)
+nrow(df_count_orgs)
+df_count_orgs$Freq = as.integer(df_count_orgs$Freq)
+typeof(df_count_orgs$Freq)
+df_count_orgs_filtered=df_count_orgs[which(df_count_orgs$Freq > 1),]
+head(df_count_orgs_filtered)
+nrow(df_count_orgs_filtered)
+
+#count_orgs_freqs = factor(df_count_orgs_filtered$Freq)
+#print(count_orgs_freqs)
+
+count_2="Count_2_Orgs:"
+for (i in 1:nrow(df_count_orgs_filtered)) {
+  if (df_count_orgs_filtered[i,'Freq'] == 2) {
+    count_2 = paste(count_2, df_count_orgs_filtered[i,'count_orgs'])
+  }
+}
+#print(count_2)
+
+print_orgs()
+
+
+```
+
+## 1f. Plot a line graph for icat4total and ccat7total for an interesting company with 6 or more evaluations. Expalain reason for interest. Explain relationship between the variables above.
+
+```{r, echo=FALSE}
+
+print("Interesting company with 6 or more evaluations is with permanentid B031")
+print("Reason: It is the only company that has been evaluated 9 times")
+print("Relationship between icat4total and ccat7total:")
+
+df_icat4_ccat7_B031 = d[c('icat4total', 'ccat7total', 'permanentid', 'year')]
+df_icat4_ccat7_B031= df_icat4_ccat7_B031[with(df_icat4_ccat7_B031, {!(is.na(ccat7total))}),]
+df_icat4_ccat7_B031$ccat7total = as.numeric(df_icat4_ccat7_B031$ccat7total)
+print(summary(df_icat4_ccat7_B031))
+
+df_icat4_ccat7_B031 = df_icat4_ccat7_B031[which(df_icat4_ccat7_B031$permanentid =="B-031"),]
+summary(df_icat4_ccat7_B031)
+
+ggplot(data=df_icat4_ccat7_B031, mapping=aes(x=year, y=icat4total)) + geom_line()
+ggplot(data=df_icat4_ccat7_B031, mapping=aes(x=year, y=ccat7total)) + geom_line()
+
+df_icat4_ccat7_B031_select_cols = df_icat4_ccat7_B031[c('icat4total', 'ccat7total')]
+
+boxplot(df_icat4_ccat7_B031_select_cols)
+
+print("The relationship between the variables is that, icat4total has low median and ccat7total has higher median value")
+
+
+print(paste0("Correlation between icat4total and ccat7total is: ", round( cor(df_icat4_ccat7_B031$icat4total, df_icat4_ccat7_B031$ccat7total),3)))
+
+print("There is a very high negative correlation between icat4total and ccat7total")
+
+
+
+
+```
+
+## 2a. Histogram (distribution) of icat4total and ccat7total for Healthcare sector. Give three observations
+
+
+```{r, echo=FALSE}
+
+df_health = d[which(d$sector==5),]
+df_health_icat4_ccat7 = df_health[c('icat4total', 'ccat7total')]
+print(summary(df_health_icat4_ccat7))
+df_health_icat4_ccat7$ccat7total = as.numeric(df_health_icat4_ccat7$ccat7total)
+print(summary(df_health_icat4_ccat7))
+
+df_health_icat4_ccat7_trimmed = df_health_icat4_ccat7[with(df_health_icat4_ccat7, {!(is.na(ccat7total))}), ]
+print(summary(df_health_icat4_ccat7_trimmed))
+
+hist(df_health_icat4_ccat7_trimmed$icat4total, main = "Distribution of icat4total for Health")
+hist(df_health_icat4_ccat7_trimmed$ccat7total, main = "Distribution of cat7total for Health")
+
+print("Observation 1: There are 103 NAs for ccat7total out of 205 observations, this is around 50% of values")
+print("Observation 2: icat4total is normally distributed for Health, ccat7total is not normally distributed")
+print("Observation 3: Maximum score of ccat7total is much higher (more than 3 times) than icat4total")
+
+```
+
+## 2b. Scatter plot (distribution) of icat4total and ccat7total for Manufacturing sector. Give two observations
+
+
+```{r, echo=FALSE}
+
+df_mfg = d[which(d$sector==1),]
+df_mfg_icat4_ccat7 = df_mfg[c('icat4total', 'ccat7total')]
+print(summary(df_mfg_icat4_ccat7))
+df_mfg_icat4_ccat7$ccat7total = as.numeric(df_mfg_icat4_ccat7$ccat7total)
+print(summary(df_mfg_icat4_ccat7))
+
+df_mfg_icat4_ccat7_trimmed = df_mfg_icat4_ccat7[with(df_mfg_icat4_ccat7, {!(is.na(ccat7total))}), ]
+print(summary(df_mfg_icat4_ccat7_trimmed))
+
+hist(df_mfg_icat4_ccat7_trimmed$icat4total, main = "Distribution of icat4total for Mfg")
+hist(df_mfg_icat4_ccat7_trimmed$ccat7total, main = "Distribution of cat7total for Mfg")
+
+with(df_mfg_icat4_ccat7_trimmed, plot(icat4total, ccat7total))
+
+
+
+print("Observation 1: There are 135 NAs for ccat7total out of 278 observations, this is around 50% of values")
+print("Observation 2: icat4total is not normally distributed for Mfg, ccat7total is normally distributed")
+
+```
+
+##2c. Line graph of iirtotal by sector by year (trend). Vertical line at year 1995 and 1998 to visualize trends in 3 parts
+
+```{r, echo=FALSE}
+
+df_sectors_trend = d[c('sector', 'iirtotal', 'year')]
+
+df_sectors_trend_mfg = df_sectors_trend[which(df_sectors_trend$sector==1),]
+df_sectors_trend_service = df_sectors_trend[which(df_sectors_trend$sector==2),]
+df_sectors_trend_small = df_sectors_trend[which(df_sectors_trend$sector==3),]
+df_sectors_trend_education = df_sectors_trend[which(df_sectors_trend$sector==4),]
+df_sectors_trend_health = df_sectors_trend[which(df_sectors_trend$sector==5),]
+df_sectors_trend_nonprofit = df_sectors_trend[which(df_sectors_trend$sector==6),]
+df_placeholder1 = data.frame('iirtotal'=c(0,800),'year'=c(1995, 1995))
+df_placeholder2 = data.frame('iirtotal'=c(0,800),'year'=c(1998, 1998))
+
+print("Trend of iirtotal over years by sectors")
+
+p1 = ggplot() + 
+  geom_line(data = df_sectors_trend_mfg, aes(x = year, y = iirtotal), color="blue") +
+  geom_line(data = df_sectors_trend_service, aes(x = year, y = iirtotal), color="red") +
+  geom_line(data=df_placeholder1, aes(x=year, y=iirtotal), color='green') +
+  geom_line(data=df_placeholder2, aes(x=year, y=iirtotal), color='green') +
+  ggtitle("Mfg (blue) and Service (red)")
+  
+  
+p2 = ggplot() +
+  geom_line(data = df_sectors_trend_small, aes(x = year, y = iirtotal), color="orange") +
+  geom_line(data = df_sectors_trend_education, aes(x = year, y = iirtotal), color="brown") +
+  geom_line(data=df_placeholder1, aes(x=year, y=iirtotal), color='green') +
+  geom_line(data=df_placeholder2, aes(x=year, y=iirtotal), color='green') +
+  ggtitle("Small (orange) and education (brown)")
+
+p3 = ggplot() +
+  geom_line(data = df_sectors_trend_health, aes(x = year, y = iirtotal), color="yellow") +
+  geom_line(data = df_sectors_trend_nonprofit, aes(x = year, y = iirtotal), color="darkred")+
+  geom_line(data=df_placeholder1, aes(x=year, y=iirtotal), color='green') +
+  geom_line(data=df_placeholder2, aes(x=year, y=iirtotal), color='green') +
+  ggtitle("Health (yellow) and nonprofit (darkred)")
+
+print(p1)
+print(p2)
+print(p3)
+
+```
+
+##2d. Line graph of number of applicants by sector by year (trend). Vertical line at year 1995 and 1998 to visualize trends in 3 parts
+
+```{r, echo=FALSE}
+
+df_sectors_trend_applicant = d[c('sector', 'applicant', 'year')]
+
+df_sectors_trend_mfg_applicant = df_sectors_trend_applicant[which(df_sectors_trend_applicant$sector==1),]
+df_sectors_trend_service_applicant = df_sectors_trend_applicant[which(df_sectors_trend_applicant$sector==2),]
+df_sectors_trend_small_applicant = df_sectors_trend_applicant[which(df_sectors_trend_applicant$sector==3),]
+df_sectors_trend_education_applicant = df_sectors_trend_applicant[which(df_sectors_trend_applicant$sector==4),]
+df_sectors_trend_health_applicant = df_sectors_trend_applicant[which(df_sectors_trend_applicant$sector==5),]
+df_sectors_trend_nonprofit_applicant = df_sectors_trend_applicant[which(df_sectors_trend_applicant$sector==6),]
+#df_placeholder1 = data.frame('iirtotal'=c(0,800),'year'=c(1995, 1995))
+#df_placeholder2 = data.frame('iirtotal'=c(0,800),'year'=c(1998, 1998))
+
+print("Trend of applicant over years by sectors")
+
+p1_applicant = ggplot() + 
+  geom_line(data = df_sectors_trend_mfg_applicant, aes(x = year, y = applicant), color="blue") +
+  geom_line(data = df_sectors_trend_service_applicant, aes(x = year, y = applicant), color="red") +
+  geom_line(data=df_placeholder1, aes(x=year, y=iirtotal), color='green') +
+  geom_line(data=df_placeholder2, aes(x=year, y=iirtotal), color='green') +
+  ggtitle("Mfg (blue) and Service (red)")
+  
+  
+p2_applicant = ggplot() +
+  geom_line(data = df_sectors_trend_small_applicant, aes(x = year, y = applicant), color="orange") +
+  geom_line(data = df_sectors_trend_education_applicant, aes(x = year, y = applicant), color="brown") +
+  geom_line(data=df_placeholder1, aes(x=year, y=iirtotal), color='green') +
+  geom_line(data=df_placeholder2, aes(x=year, y=iirtotal), color='green') +
+  ggtitle("Small (orange) and education (brown)")
+
+p3_applicant = ggplot() +
+  geom_line(data = df_sectors_trend_health_applicant, aes(x = year, y = applicant), color="yellow") +
+  geom_line(data = df_sectors_trend_nonprofit_applicant, aes(x = year, y = applicant), color="darkred")+
+  geom_line(data=df_placeholder1, aes(x=year, y=iirtotal), color='green') +
+  geom_line(data=df_placeholder2, aes(x=year, y=iirtotal), color='green') +
+  ggtitle("Health (yellow) and nonprofit (darkred)")
+
+print(p1_applicant)
+print(p2_applicant)
+print(p3_applicant)
+
+```
+
+##2e.Box plot for all individual category totals (icat1total to icat7total) in Manufacturing sector. Identify outlier scores
+
+```{r, echo=FALSE}
+a1="icat"
+a2="total"
+cols=c()
+for (i in (1:7)) {
+  a3 = paste0(a1,i)
+  a4 = paste0(a3,a2)
+  cols=c(cols,a4)
+}
+
+cols = c(cols, 'sector')
+
+df_icatxtotal = d[cols]
+df_icatxtotal_mfg = df_icatxtotal[which(df_icatxtotal$sector == 1),]
+
+boxplot(df_icatxtotal_mfg)
+print(paste0("Outliers for manufacturing sector icatxtotal are: ", boxplot(df_icatxtotal_mfg)$out))
+
+
+```
+
+##2f. Scatterplot between icat4total and ccat7total subdivided by timeperiods (1. upto 1994, 2. 1995 to 1998, 3. 1999 and above)
+
+```{r, echo=FALSE}
+
+df_mfg = d[which(d$sector==1),]
+df_mfg_icat4_ccat7 = df_mfg[c('icat4total', 'ccat7total', 'year')]
+df_mfg_icat4_ccat7 = df_mfg_icat4_ccat7[with(df_mfg_icat4_ccat7, {!is.na(df_mfg_icat4_ccat7$icat4total)}),]
+df_mfg_icat4_ccat7$ccat7total = as.numeric(df_mfg_icat4_ccat7$ccat7total)
+df_mfg_icat4_ccat7 = df_mfg_icat4_ccat7[with(df_mfg_icat4_ccat7, {!is.na(df_mfg_icat4_ccat7$ccat7total)}),]
+df_mfg_icat4_ccat7$time_period = 1
+
+
+for (i in 1: nrow(df_mfg_icat4_ccat7)) {
+  if (df_mfg_icat4_ccat7[i,'year'] <  1995) {
+    df_mfg_icat4_ccat7[i,'time_period'] = 0
+  } else if (df_mfg_icat4_ccat7[i,'year'] > 1998) {
+    df_mfg_icat4_ccat7[i,'time_period'] = 2
+  }
+}
+df_mfg_icat4_ccat7$time_period = factor(df_mfg_icat4_ccat7$time_period)
+print(summary(df_mfg_icat4_ccat7))
+
+xyplot(icat4total ~ ccat7total | time_period, df_mfg_icat4_ccat7, grid=TRUE)
+
+print("Observation 1: Data upto 1994 is tightly packed with central tendency around mean. Even for low or high icat4total, ccat7total could have been high, so other totals influence is displayed")
+print("OBservation 2: For data for 1999 and above, ccat7total heavily depends upon icat4total showing less influence on icat7total by other totals")
+print("Observation 3: Probablity Density of data between 1995 and 1998 is scattered, making it less reliable to predict icat7total based on icat4total (OLS error will be higher for this compared to other two) ")
+
+```
+
+##2g. Table of summary stats (N, mean, sd, min, max) for icat1total to icat7total
+
+```{r, echo=FALSE}
+
+print("Stargazer does not work well with Rmarkdown. How to solve this issue? SD is represented by 1st Qu and 3rd Qu")
+
+print(summary(df_icatxtotal))
+
+```
+
+##2h. Pairwise Pearson coefficients for consensus category totals ccat1total to ccat7total
+
+
+```{r, echo=FALSE}
+
+a11="ccat"
+a21="total"
+cols=c()
+for (i in (1:7)) {
+  a31 = paste0(a11,i)
+  a41 = paste0(a31,a21)
+  cols=c(cols,a41)
+}
+
+df_ccatxtotal = d[cols]
+summary(df_ccatxtotal)
+for (i in 1:7){
+  df_ccatxtotal[,i]=as.numeric(df_ccatxtotal[,i])
+  df_ccatxtotal=df_ccatxtotal[with(df_ccatxtotal,{!is.na(df_ccatxtotal[,i])}),]
+}
+summary(df_ccatxtotal)
+
+print(round( cor(df_ccatxtotal),2))
+
+
+```
+
+##3a. 95% confidence interval for icat7total and maximum icat7total 
+
+```{r, echo=FALSE}
+
+t.test(df_icatxtotal$icat7total)
+print("95% confidence interval is 139.42, 147.33 and maximum icat7total with 95% confidence is 147.33")
+
+```
+
+##3b. 95% confidence interval for icat7total for healthcare and education: which have higher score? 
+
+```{r, echo=FALSE}
+
+df_icatxtotal_education1 = df_icatxtotal[which(df_icatxtotal$sector==4),]
+df_icatxtotal_health1 = df_icatxtotal[which(df_icatxtotal$sector==5),]
+
+t.test(df_icatxtotal_education1$icat7total)
+t.test(df_icatxtotal_health1$icat7total)
+print("95% confidence interval for health (mean: 156.67, max: 166.53) has higher score than education (mean: 142.98, max: 154.72)")
+
+```
